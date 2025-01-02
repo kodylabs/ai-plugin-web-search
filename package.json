@@ -13,5 +13,8 @@
   },
   "peerDependencies": {
     "whatwg-url": "7.1.0"
-  }
+  },
+  "pluginType": "elizaos:plugin:1.0.0",
+  "pluginParameters": {},
+  "pluginEnv": {}
 }
