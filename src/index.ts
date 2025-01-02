@@ -52,13 +52,19 @@ const webSearch: Action = {
 
         return tavilyApiKeyOk;
     },
-    handler: async (
+    handler: async ({
+        runtime,
+        message,
+        state,
+        options,
+        callback,
+    }: {
         runtime: IAgentRuntime,
         message: Memory,
         state: State,
         options: any,
         callback: HandlerCallback
-    ) => {
+    }) => {
         elizaLogger.log("Composing state for message:", message);
         state = (await runtime.composeState(message)) as State;
         const userId = runtime.agentId;
