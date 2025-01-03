@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "type": "module",
   "dependencies": {
+    "js-tiktoken": "1.0.15",
     "tsup": "8.3.5"
   },
   "scripts": {
