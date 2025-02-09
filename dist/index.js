@@ -28,12 +28,12 @@ var WebSearchService = class _WebSearchService extends Service {
   async search(query, options) {
     try {
       const response = await this.tavilyClient.search(query, {
-        includeAnswer: options?.includeAnswer || true,
-        maxResults: options?.limit || 3,
-        topic: options?.type || "general",
-        searchDepth: options?.searchDepth || "basic",
-        includeImages: options?.includeImages || false,
-        days: options?.days || 3
+        includeAnswer: (options == null ? void 0 : options.includeAnswer) || true,
+        maxResults: (options == null ? void 0 : options.limit) || 3,
+        topic: (options == null ? void 0 : options.type) || "general",
+        searchDepth: (options == null ? void 0 : options.searchDepth) || "basic",
+        includeImages: (options == null ? void 0 : options.includeImages) || false,
+        days: (options == null ? void 0 : options.days) || 3
       });
       return response;
     } catch (error) {
@@ -215,7 +215,8 @@ var webSearchPlugin = {
   evaluators: [],
   providers: [],
   services: [new WebSearchService()],
-  clients: []
+  clients: [],
+  adapters: []
 };
 var index_default = webSearchPlugin;
 export {
