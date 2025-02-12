@@ -1,7 +1,9 @@
+import * as _elizaos_core from '@elizaos/core';
+
 declare const webSearchPlugin: {
     name: string;
     description: string;
-    actions: Action[];
+    actions: _elizaos_core.Action[];
     evaluators: any[];
     providers: any[];
     services: any[];
