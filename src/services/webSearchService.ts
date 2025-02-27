@@ -34,7 +34,7 @@ export class WebSearchService extends Service implements IWebSearchService {
         try {
             const response = await this.tavilyClient.search(query, {
                 includeAnswer: options?.includeAnswer || true,
-                maxResults: options?.limit || 3,
+                maxResults: options?.limit || 1,
                 topic: options?.type || "general",
                 searchDepth: options?.searchDepth || "basic",
                 includeImages: options?.includeImages || false,
