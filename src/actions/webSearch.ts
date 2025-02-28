@@ -15,9 +15,9 @@ import { searchParamsTemplate } from "../templates/searchParamsTemplate";
 import { 
     isValidSearchParams, 
     MaxTokens, 
-    DEFAULT_MAX_WEB_SEARCH_TOKENS,
-    type SearchParams 
+    DEFAULT_MAX_WEB_SEARCH_TOKENS
 } from "../utils/searchUtils";
+import { webSearchExamples } from "../examples/webSearchExamples";
 
 export const webSearch: Action = {
     name: "WEB_SEARCH",
@@ -84,6 +84,7 @@ export const webSearch: Action = {
             const webSearchService = new WebSearchService();
             await webSearchService.initialize(runtime);
             
+            // Create search options with proper type conversion
             const searchOptions = isValidSearchParams(searchParams) ? {
                 limit: typeof searchParams.limit === 'string' 
                     ? parseInt(searchParams.limit, 10) 
@@ -97,10 +98,10 @@ export const webSearch: Action = {
             );
 
             if (searchResponse && searchResponse.results.length) {
-                // Limiter explicitement le nombre de résultats à afficher
+                // Explicitly limit the number of results to display
                 const limit = searchOptions?.limit || 1;
                 
-                // Prendre seulement les 'limit' premiers résultats
+                // Take only the first 'limit' results
                 const limitedResults = searchResponse.results.slice(0, limit);
                 
                 const responseList = searchResponse.answer
@@ -130,107 +131,5 @@ export const webSearch: Action = {
             });
         }
     },
-    examples: [
-        [
-            {
-                user: "{{user1}}",
-                content: {
-                    text: "Find the latest news about SpaceX launches.",
-                },
-            },
-            {
-                user: "{{agentName}}",
-                content: {
-                    text: "Here is the latest news about SpaceX launches:",
-                    action: "WEB_SEARCH",
-                },
-            },
-        ],
-        [
-            {
-                user: "{{user1}}",
-                content: {
-                    text: "Can you find 3 details about the iPhone 16 release?",
-                },
-            },
-            {
-                user: "{{agentName}}",
-                content: {
-                    text: "Here are the details I found about the iPhone 16 release:",
-                    action: "WEB_SEARCH",
-                },
-            },
-        ],
-        [
-            {
-                user: "{{user1}}",
-                content: {
-                    text: "What is the schedule for the next FIFA World Cup?",
-                },
-            },
-            {
-                user: "{{agentName}}",
-                content: {
-                    text: "Here is the schedule for the next FIFA World Cup:",
-                    action: "WEB_SEARCH",
-                },
-            },
-        ],
-        [
-            {
-                user: "{{user1}}",
-                content: { text: "Check the latest stock price of Tesla." },
-            },
-            {
-                user: "{{agentName}}",
-                content: {
-                    text: "Here is the latest stock price of Tesla I found:",
-                    action: "WEB_SEARCH",
-                },
-            },
-        ],
-        [
-            {
-                user: "{{user1}}",
-                content: {
-                    text: "Find 5 trending movies in the US.",
-                },
-            },
-            {
-                user: "{{agentName}}",
-                content: {
-                    text: "Here are the current trending movies in the US:",
-                    action: "WEB_SEARCH",
-                },
-            },
-        ],
-        [
-            {
-                user: "{{user1}}",
-                content: {
-                    text: "What is the latest score in the NBA finals?",
-                },
-            },
-            {
-                user: "{{agentName}}",
-                content: {
-                    text: "Here is the latest score from the NBA finals:",
-                    action: "WEB_SEARCH",
-                },
-            },
-        ],
-        [
-            {
-                user: "{{user1}}",
-                content: { text: "When is the next Apple keynote event?" },
-            },
-            {
-                user: "{{agentName}}",
-                content: {
-                    text: "Here is the information about the next Apple keynote event:",
-                    action: "WEB_SEARCH",
-                },
-            },
-        ],
-    ],
+    examples: webSearchExamples,
 } as Action;

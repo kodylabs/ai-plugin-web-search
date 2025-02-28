@@ -1,3 +1,9 @@
+/**
+ * Template to extract search parameters from user query.
+ * This template is used by the LLM to analyze the query and extract:
+ * 1. The number of results desired (default: 1)
+ * 2. The type of search (news or general, default: general)
+ */
 export const searchParamsTemplate = `
 Analyze the user's search query and extract the following parameters:
 1. The number of results the user wants (default: 1)
