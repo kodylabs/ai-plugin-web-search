@@ -45,7 +45,7 @@ export const webSearch: Action = {
         runtime: IAgentRuntime,
         message: Memory,
         state: State,
-        options: any,
+        _options: any,
         callback: HandlerCallback
     ) => {
         elizaLogger.log("Composing state for message:", message);
