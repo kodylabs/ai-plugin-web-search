@@ -9,86 +9,15 @@ import {
     generateObjectDeprecated,
     ModelClass
 } from "@elizaos/core";
-import { encodingForModel, type TiktokenModel } from "js-tiktoken";
 import { WebSearchService } from "../services/webSearchService";
 import type { SearchResult } from "../types";
-
-const DEFAULT_MAX_WEB_SEARCH_TOKENS = 4000;
-const DEFAULT_MODEL_ENCODING = "gpt-3.5-turbo";
-
-function getTotalTokensFromString(
-    str: string,
-    encodingName: TiktokenModel = DEFAULT_MODEL_ENCODING
-) {
-    const encoding = encodingForModel(encodingName);
-    return encoding.encode(str).length;
-}
-
-function MaxTokens(
-    data: string,
-    maxTokens: number = DEFAULT_MAX_WEB_SEARCH_TOKENS
-): string {
-    if (getTotalTokensFromString(data) >= maxTokens) {
-        return data.slice(0, maxTokens);
-    }
-    return data;
-}
-
-// Template to extract search parameters
-const searchParamsTemplate = `
-Analyze the user's search query and extract the following parameters:
-1. The number of results the user wants (default: 1)
-2. The type of search (news or general, default: general)
-
-Return a JSON object with these parameters:
-
-Example response:
-\`\`\`json
-{
-    "limit": 3,
-    "type": "news"
-}
-\`\`\`
-
-If the user doesn't specify a number of results, set "limit" to 1.
-If the user doesn't specify a type, set "type" to "general".
-
-Here are some examples of how to interpret user queries:
-- "Find me 5 articles about AI" → limit: 5, type: "general"
-- "What are the latest news about SpaceX?" → limit: 1, type: "news"
-- "Give me multiple sources about climate change" → limit: 5, type: "general"
-- "Find detailed information about quantum computing" → limit: 3, type: "general"
-- "Show me recent developments in blockchain" → limit: 3, type: "news"
-
-User query: {{message}}
-
-Extract the search parameters from the query above. Respond with a JSON markdown block.
-`;
-
-// Interface for extracted search parameters
-interface SearchParams {
-    limit?: number;  // Controls the maxResults parameter in the Tavily API call
-    type?: "news" | "general";
-}
-
-// Function to validate extracted search parameters
-function isValidSearchParams(params: any): params is SearchParams {
-    if (typeof params !== 'object' || params === null) return false;
-    
-    // Check limit
-    if ('limit' in params && 
-        (typeof params.limit !== 'number' || params.limit < 1 || !Number.isInteger(params.limit))) {
-        return false;
-    }
-    
-    // Check type
-    if ('type' in params && 
-        (typeof params.type !== 'string' || (params.type !== 'news' && params.type !== 'general'))) {
-        return false;
-    }
-    
-    return true;
-}
+import { searchParamsTemplate } from "../templates/searchParamsTemplate";
+import { 
+    isValidSearchParams, 
+    MaxTokens, 
+    DEFAULT_MAX_WEB_SEARCH_TOKENS,
+    type SearchParams 
+} from "../utils/searchUtils";
 
 export const webSearch: Action = {
     name: "WEB_SEARCH",
@@ -154,17 +83,31 @@ export const webSearch: Action = {
             // where it's used as the 'maxResults' parameter in the Tavily API call
             const webSearchService = new WebSearchService();
             await webSearchService.initialize(runtime);
+            
+            const searchOptions = isValidSearchParams(searchParams) ? {
+                limit: typeof searchParams.limit === 'string' 
+                    ? parseInt(searchParams.limit, 10) 
+                    : searchParams.limit,
+                type: searchParams.type
+            } : undefined;
+            
             const searchResponse = await webSearchService.search(
                 webSearchPrompt,
-                isValidSearchParams(searchParams) ? searchParams : undefined
+                searchOptions
             );
 
             if (searchResponse && searchResponse.results.length) {
+                // Limiter explicitement le nombre de résultats à afficher
+                const limit = searchOptions?.limit || 1;
+                
+                // Prendre seulement les 'limit' premiers résultats
+                const limitedResults = searchResponse.results.slice(0, limit);
+                
                 const responseList = searchResponse.answer
                     ? `${searchResponse.answer}${
-                          Array.isArray(searchResponse.results) &&
-                          searchResponse.results.length > 0
-                              ? `\n\nFor more details, you can check out these resources:\n${searchResponse.results
+                          Array.isArray(limitedResults) &&
+                          limitedResults.length > 0
+                              ? `\n\nFor more details, you can check out these resources:\n${limitedResults
                                     .map(
                                         (result: SearchResult, index: number) =>
                                             `${index + 1}. [${result.title}](${result.url})`
@@ -173,7 +116,7 @@ export const webSearch: Action = {
                               : ""
                       }`
                     : "";
-
+                
                 callback({
                     text: MaxTokens(responseList, DEFAULT_MAX_WEB_SEARCH_TOKENS),
                 });
