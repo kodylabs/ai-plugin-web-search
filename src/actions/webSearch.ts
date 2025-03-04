@@ -34,7 +34,6 @@ export const webSearch: Action = {
     ],
     suppressInitialMessage: true,
     description: "Perform a web search to find information related to the message.",
-    // eslint-disable-next-line
     validate: async (runtime: IAgentRuntime) => {
         return !!runtime.getSetting("TAVILY_API_KEY");
     },
@@ -100,7 +99,6 @@ export const webSearch: Action = {
                     : searchParams.limit,
                 type: searchParams.type
             } : undefined;
-            
             elizaLogger.log("Search options:", searchOptions);
             
             const searchResponse = await webSearchService.search(
