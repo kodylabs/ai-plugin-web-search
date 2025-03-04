@@ -10,7 +10,7 @@ import {
     generateText,
     ModelClass
 } from "@elizaos/core";
-import { isValidExtractParams, validateUrls, formatExtractedContent, MaxTokens } from "../utils/extractUtils";
+import { validateUrls, normalizeExtractParams } from "../utils/extractUtils";
 import { extractParamsTemplate } from "../templates/extractParamsTemplate";
 import { extractResponseTemplate } from "../templates/extractResponseTemplate";
 import { webExtractExamples } from "../examples/webExtractExamples";
@@ -47,9 +47,12 @@ export const webExtract: Action = {
         callback: HandlerCallback
     ) => {
         state = (await runtime.composeState(message)) as State;
+        let extractResponse;
+        let extractionResultsText = "";
+        let status = "success"; // Default status
 
         try {
-            // Utiliser le template pour extraire les URLs et les options
+            // Use the template to extract URLs and options
             const extractParamsContext = composeContext({
                 state: {
                     ...state,
@@ -64,124 +67,91 @@ export const webExtract: Action = {
                 modelClass: ModelClass.SMALL,
             });
             
-            // Corriger les paramètres si nécessaire
-            if (extractParams) {
-                // Corriger includeImages si c'est une chaîne
-                if (typeof extractParams.includeImages === 'string') {
-                    const lowerValue = String(extractParams.includeImages).toLowerCase();
-                    if (lowerValue === 'true') {
-                        extractParams.includeImages = true;
-                    } else if (lowerValue === 'false') {
-                        extractParams.includeImages = false;
-                    } else {
-                        extractParams.includeImages = false; // Valeur par défaut
-                    }
-                } else if (extractParams.includeImages === undefined) {
-                    extractParams.includeImages = false; // Valeur par défaut
-                }
-                
-                // Corriger extractDepth si nécessaire
-                if (typeof extractParams.extractDepth === 'string') {
-                    const lowerValue = extractParams.extractDepth.toLowerCase();
-                    if (lowerValue === 'basic' || lowerValue === 'advanced') {
-                        extractParams.extractDepth = lowerValue as "basic" | "advanced";
-                    } else {
-                        extractParams.extractDepth = "basic";
-                    }
-                } else if (extractParams.extractDepth === undefined) {
-                    extractParams.extractDepth = "basic"; // Valeur par défaut
-                }
-                
-                // S'assurer que urls est un tableau
-                if (!Array.isArray(extractParams.urls)) {
-                    extractParams.urls = [];
-                }
-            }
+            // Normalize parameters using utility function
+            const normalizedParams = normalizeExtractParams(extractParams || {});
+            
+            // Validate URLs
+            const validUrls = validateUrls(normalizedParams.urls);
 
-            // Valider les paramètres d'extraction
-            const isParamsValid = isValidExtractParams(extractParams);
-            
-            // Valider les URLs extraites par le template
-            const urls = validateUrls(extractParams.urls || []);
-            
-            if (urls.length === 0) {
-                callback({
-                    text: "Je n'ai pas trouvé d'URLs valides dans votre message. Veuillez fournir des URLs valides commençant par http:// ou https://."
-                });
-                return;
-            }
-
-            const webExtractService = new WebExtractService();
-            await webExtractService.initialize(runtime);
-            
-            const extractOptions = isParamsValid ? {
-                includeImages: extractParams.includeImages !== undefined ? extractParams.includeImages : false,
-                extractDepth: (extractParams.extractDepth as "basic" | "advanced") || "basic"
-            } : {
-                includeImages: false,
-                extractDepth: "basic" as const
-            };
-
-            const extractResponse = await webExtractService.extract(urls, extractOptions);
-            
-            if (extractResponse && extractResponse.results.length) {
-                // Préparer les données pour le template de formatage
-                let extractionResultsText = "";
-                
-                // Ajouter les résultats réussis
-                extractResponse.results.forEach((result: SuccessfulExtractResult, index: number) => {
-                    extractionResultsText += `URL ${index + 1}: ${result.url}\n`;
-                    extractionResultsText += `Contenu: ${result.raw_content}\n`;
-                    
-                    // Ajouter les images si disponibles
-                    if (result.images && result.images.length > 0) {
-                        extractionResultsText += `Images: ${result.images.length} image(s) trouvée(s)\n`;
-                    }
-                    
-                    extractionResultsText += "\n---\n\n";
-                });
-                
-                // Ajouter les résultats échoués
-                if (extractResponse.failed_results && extractResponse.failed_results.length > 0) {
-                    extractionResultsText += "URLs non extraites:\n";
-                    
-                    extractResponse.failed_results.forEach((result: FailedExtractResult, index: number) => {
-                        extractionResultsText += `URL ${index + 1}: ${result.url} - Erreur: ${result.error}\n`;
-                    });
-                    
-                    extractionResultsText += "\n---\n\n";
-                }
-                
-                // Utiliser le template pour formater la réponse
-                const responseContext = composeContext({
-                    state: {
-                        ...state,
-                        extractionResults: extractionResultsText,
-                        responseTime: extractResponse.response_time
-                    },
-                    template: extractResponseTemplate
-                });
-                
-                const formattedResponse = await generateText({
-                    runtime,
-                    context: responseContext,
-                    modelClass: ModelClass.MEDIUM,
-                });
-                
-                callback({
-                    text: formattedResponse
-                });
+            if (validUrls.length === 0) {
+                // No valid URLs found
+                extractionResultsText = "No valid URLs were found in the message. Please provide valid URLs starting with http:// or https://.\n";
+                status = "no_results";
             } else {
-                callback({
-                    text: "Je n'ai pas pu extraire le contenu des URLs fournies. Veuillez vérifier que les URLs sont accessibles et réessayer."
-                });
+                const webExtractService = new WebExtractService();
+                await webExtractService.initialize(runtime);
+                
+                const extractOptions = {
+                    includeImages: normalizedParams.includeImages !== undefined ? normalizedParams.includeImages : false,
+                    extractDepth: (normalizedParams.extractDepth as "basic" | "advanced") || "basic"
+                };
+
+                try {
+                    extractResponse = await webExtractService.extract(validUrls, extractOptions);
+                    
+                    if (extractResponse && extractResponse.results.length) {
+                        // Add successful results
+                        extractResponse.results.forEach((result: SuccessfulExtractResult, index: number) => {
+                            extractionResultsText += `URL ${index + 1}: ${result.url}\n`;
+                            extractionResultsText += `Content: ${result.raw_content}\n`;
+                            
+                            // Add images if available
+                            if (result.images && result.images.length > 0) {
+                                extractionResultsText += `Images: ${result.images.length} image(s) found\n`;
+                            }
+                            
+                            extractionResultsText += "\n---\n\n";
+                        });
+                        
+                        // Add failed results
+                        if (extractResponse.failed_results && extractResponse.failed_results.length > 0) {
+                            extractionResultsText += "URLs not extracted:\n";
+                            
+                            extractResponse.failed_results.forEach((result: FailedExtractResult, index: number) => {
+                                extractionResultsText += `URL ${index + 1}: ${result.url} - Error: ${result.error}\n`;
+                            });
+                            
+                            extractionResultsText += "\n---\n\n";
+                        }
+                        
+                        status = "success";
+                    } else {
+                        extractionResultsText = "Could not extract content from the provided URLs. Please check that the URLs are accessible and try again.\n";
+                        status = "no_results";
+                    }
+                } catch (error) {
+                    elizaLogger.error("Error in web extract handler:", error);
+                    extractionResultsText = `An error occurred while extracting from URLs: ${error.message || "Unknown error"}\n`;
+                    status = "error";
+                }
             }
         } catch (error) {
             elizaLogger.error("Error in web extract handler:", error);
-            callback({
-                text: `Une erreur s'est produite lors de l'extraction des URLs: ${error.message || "Erreur inconnue"}`
-            });
+            extractionResultsText = `An error occurred while processing your request: ${error.message || "Unknown error"}`;
+            status = "error";
         }
+        
+        // Use the template to format the response - single LLM call for all cases
+        const responseContext = composeContext({
+            state: {
+                ...state,
+                extractionResults: extractionResultsText,
+                responseTime: extractResponse ? extractResponse.response_time : 0,
+                status: status,
+                originalMessage: message.content.text
+            },
+            template: extractResponseTemplate
+        });
+        
+        const formattedResponse = await generateText({
+            runtime,
+            context: responseContext,
+            modelClass: ModelClass.MEDIUM,
+        });
+        
+        callback({
+            text: formattedResponse
+        });
     },
     examples: webExtractExamples
 } as Action;

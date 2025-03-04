@@ -39,7 +39,7 @@ export function validateUrls(urls: string[]): string[] {
 
     return urls.filter(url => {
         try {
-            // Vérifier si l'URL est valide
+            // Check if URL is valid
             new URL(url);
             return true;
         } catch (e) {
@@ -56,30 +56,30 @@ export function isValidExtractParams(params: any): params is ExtractOptions {
         return false;
     }
     
-    // Vérifier si l'objet a au moins une des propriétés attendues
+    // Check if the object has at least one of the expected properties
     const hasExpectedProperties = 'includeImages' in params || 'extractDepth' in params || 'urls' in params;
     if (!hasExpectedProperties) {
         return false;
     }
     
-    // Vérifier includeImages si présent
+    // Check includeImages if present
     if ('includeImages' in params) {
-        // Accepter les booléens et les chaînes 'true'/'false'
+        // Accept booleans and 'true'/'false' strings
         if (typeof params.includeImages !== 'boolean') {
-            // Si c'est une chaîne, on accepte 'true' ou 'false'
+            // If it's a string, accept 'true' or 'false'
             if (typeof params.includeImages === 'string') {
                 const lowerValue = params.includeImages.toLowerCase();
                 if (lowerValue !== 'true' && lowerValue !== 'false') {
                     return false;
                 }
-                // On accepte la chaîne, elle sera convertie plus tard
+                // Accept the string, it will be converted later
             } else {
                 return false;
             }
         }
     }
     
-    // Vérifier extractDepth si présent
+    // Check extractDepth if present
     if ('extractDepth' in params) {
         if (typeof params.extractDepth !== 'string') {
             return false;
@@ -91,13 +91,13 @@ export function isValidExtractParams(params: any): params is ExtractOptions {
         }
     }
     
-    // Vérifier urls si présent
+    // Check urls if present
     if ('urls' in params) {
         if (!Array.isArray(params.urls)) {
             return false;
         }
         
-        // Vérifier que tous les éléments sont des chaînes
+        // Check that all elements are strings
         if (params.urls.some(url => typeof url !== 'string')) {
             return false;
         }
@@ -107,20 +107,20 @@ export function isValidExtractParams(params: any): params is ExtractOptions {
 }
 
 /**
- * Formater le contenu extrait pour le rendre plus lisible
+ * Format extracted content to make it more readable
  */
 export function formatExtractedContent(content: string): string {
     if (!content) return '';
     
-    // Supprimer les espaces et sauts de ligne excessifs
+    // Remove excessive spaces and line breaks
     let formatted = content.replace(/\s+/g, ' ');
     
-    // Limiter la taille du contenu
+    // Limit content size
     return MaxTokens(formatted);
 }
 
 /**
- * Créer une réponse d'extraction vide
+ * Create an empty extraction response
  */
 export function createEmptyExtractResponse(): ExtractResponse {
     return {
@@ -131,7 +131,7 @@ export function createEmptyExtractResponse(): ExtractResponse {
 }
 
 /**
- * Fusionner plusieurs réponses d'extraction en une seule
+ * Merge multiple extraction responses into one
  */
 export function mergeExtractResponses(responses: ExtractResponse[]): ExtractResponse {
     if (!responses || responses.length === 0) {
@@ -157,4 +157,42 @@ export function mergeExtractResponses(responses: ExtractResponse[]): ExtractResp
     }
     
     return merged;
+}
+
+/**
+ * Normalize extraction parameters by fixing types and setting default values
+ */
+export function normalizeExtractParams(params: any): ExtractOptions & { urls: string[] } {
+    const normalizedParams: ExtractOptions & { urls: string[] } = {
+        urls: []
+    };
+    
+    // Fix includeImages if it's a string
+    if (typeof params.includeImages === 'string') {
+        const lowerValue = String(params.includeImages).toLowerCase();
+        normalizedParams.includeImages = lowerValue === 'true';
+    } else if (typeof params.includeImages === 'boolean') {
+        normalizedParams.includeImages = params.includeImages;
+    } else {
+        normalizedParams.includeImages = false; // Default value
+    }
+    
+    // Fix extractDepth if necessary
+    if (typeof params.extractDepth === 'string') {
+        const lowerValue = params.extractDepth.toLowerCase();
+        if (lowerValue === 'basic' || lowerValue === 'advanced') {
+            normalizedParams.extractDepth = lowerValue as "basic" | "advanced";
+        } else {
+            normalizedParams.extractDepth = "basic";
+        }
+    } else {
+        normalizedParams.extractDepth = "basic"; // Default value
+    }
+    
+    // Ensure urls is an array
+    if (Array.isArray(params.urls)) {
+        normalizedParams.urls = params.urls;
+    }
+    
+    return normalizedParams;
 } 
