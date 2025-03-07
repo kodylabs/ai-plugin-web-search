@@ -34,7 +34,6 @@ export const webSearch: Action = {
     ],
     suppressInitialMessage: true,
     description: "Perform a web search to find information related to the message.",
-    // eslint-disable-next-line
     validate: async (runtime: IAgentRuntime) => {
         return !!runtime.getSetting("TAVILY_API_KEY");
     },
@@ -45,28 +44,34 @@ export const webSearch: Action = {
         _options: any,
         callback: HandlerCallback
     ) => {
-        elizaLogger.log("Composing state for message:", message);
         state = (await runtime.composeState(message)) as State;
         const userId = runtime.agentId;
-        elizaLogger.log("User ID:", userId);
         elizaLogger.log("Original search query:", message.content.text);
 
         try {
             const recentMessagesData = state.recentMessagesData || [];
             
-            // Find the last agent message (where agentId === message.agentId)
-            // We use the agent's message as it often contains a more precise summary of the user's request
-            const lastAgentMessage = recentMessagesData
-                .filter(m => m.agentId === message.agentId)
-                .pop();
-                
-            const lastAgentMessageText = lastAgentMessage.content.text;
-            elizaLogger.log("Last agent message:", lastAgentMessageText);
+            // Find the index of the current user message in the conversation
+            const currentUserMessageIndex = recentMessagesData.findIndex(m => 
+                m.content && m.content.text === message.content.text);
+            
+            // Find the agent message that comes AFTER the last user message
+            let lastRelevantAgentMessage = null;
+            if (currentUserMessageIndex >= 0 && currentUserMessageIndex < recentMessagesData.length - 1) {
+                // Look for the first agent message after the current user message
+                for (let i = currentUserMessageIndex + 1; i < recentMessagesData.length; i++) {
+                    const m = recentMessagesData[i];
+                    if (m.agentId === message.agentId) {
+                        lastRelevantAgentMessage = m;
+                        break;
+                    }
+                }
+            }
             
             const searchParamsContext = composeContext({
                 state: {
                     ...state,
-                    message: lastAgentMessageText
+                    message: lastRelevantAgentMessage
                 },
                 template: searchParamsTemplate
             });
@@ -82,7 +87,6 @@ export const webSearch: Action = {
             if (!isParamsValid) {
                 elizaLogger.warn("Invalid search parameters, using defaults");
             }
-            elizaLogger.log("Extracted search parameters:", searchParams);
 
             // Use the reformulated search query from the template
             const webSearchPrompt = searchParams.query;
@@ -100,8 +104,6 @@ export const webSearch: Action = {
                     : searchParams.limit,
                 type: searchParams.type
             } : undefined;
-            
-            elizaLogger.log("Search options:", searchOptions);
             
             const searchResponse = await webSearchService.search(
                 webSearchPrompt,
