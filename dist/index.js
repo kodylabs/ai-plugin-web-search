@@ -2,7 +2,8 @@
 import {
   elizaLogger,
   composeContext,
-  generateObjectDeprecated,
+  generateObject,
+  generateText,
   ModelClass
 } from "@elizaos/core";
 
@@ -29,17 +30,18 @@ var WebSearchService = class _WebSearchService extends Service {
   }
   async search(query, options) {
     try {
-      let maxResults = 1;
-      if (options && options.limit !== void 0) {
-        maxResults = typeof options.limit === "string" ? parseInt(options.limit, 10) : options.limit;
-      }
       const tavilyOptions = {
-        includeAnswer: (options == null ? void 0 : options.includeAnswer) ?? true,
-        maxResults,
-        topic: (options == null ? void 0 : options.type) || "general",
         searchDepth: (options == null ? void 0 : options.searchDepth) || "basic",
+        topic: (options == null ? void 0 : options.topic) || "general",
+        days: (options == null ? void 0 : options.days) || 3,
+        maxResults: (options == null ? void 0 : options.maxResults) || 1,
         includeImages: (options == null ? void 0 : options.includeImages) || false,
-        days: (options == null ? void 0 : options.days) || 3
+        includeImageDescriptions: (options == null ? void 0 : options.includeImageDescriptions) || false,
+        includeAnswer: (options == null ? void 0 : options.includeAnswer) ?? true,
+        includeRawContent: (options == null ? void 0 : options.includeRawContent) || false,
+        includeDomains: options == null ? void 0 : options.includeDomains,
+        excludeDomains: options == null ? void 0 : options.excludeDomains,
+        maxTokens: options == null ? void 0 : options.maxTokens
       };
       const response = await this.tavilyClient.search(query, tavilyOptions);
       return response;
@@ -49,47 +51,118 @@ var WebSearchService = class _WebSearchService extends Service {
   }
 };
 
-// src/templates/searchParamsTemplate.ts
-var searchParamsTemplate = `
-Analyze the following message and extract these parameters:
-1. The number of results desired (default: 1)
-2. The type of search (news or general, default: general)
-3. A reformulated search query that will yield the best search results
+// src/types.ts
+import { z } from "zod";
+var SearchParamsSchema = z.object({
+  query: z.string(),
+  topic: z.enum(["general", "news"]).optional(),
+  maxResults: z.number().min(1).max(10).optional(),
+  days: z.number().optional(),
+  includeImages: z.boolean().optional(),
+  includeImageDescriptions: z.boolean().optional(),
+  includeRawContent: z.boolean().optional(),
+  includeDomains: z.array(z.string()).optional(),
+  excludeDomains: z.array(z.string()).optional(),
+  searchDepth: z.enum(["basic", "advanced"]).optional(),
+  timeRange: z.enum(["day", "week", "month", "year", "d", "w", "m", "y"]).optional()
+});
 
-Return a JSON object with these parameters:
+// src/templates/searchTemplate.ts
+var searchTemplate = `
+Analyze the following message and extract:
+1. The search query (convert it to a simple search query suitable for a search engine)
+2. Optional parameters if specified:
+   - searchDepth: "basic" or "advanced"
+   - topic: "general" or "news"
+   - maxResults: number between 1 and 20
 
-Example response:
+CRITICAL JSON FORMATTING RULES:
+1. Use ONLY ASCII characters
+2. Use ONLY double quotes (") for strings
+3. Numbers must be actual numbers (not strings)
+4. All fields must be at the root level (no nesting)
+
+QUERY FORMATTING RULES:
+1. Remove any personal pronouns or pleasantries
+2. Make it concise and search-engine friendly
+3. Remove any special characters or formatting
+4. Keep important keywords and context
+
+Examples of query transformation:
+- "Can you search for information about the iPhone please?" -> "iPhone latest information"
+- "Find me news about Korian group" -> "Korian group latest news"
+
+Example of VALID JSON structure:
 \`\`\`json
 {
-    "limit": 3,
-    "type": "news",
-    "query": "SpaceX recent rocket launches and achievements"
+    "query": "Korian group latest news",
+    "maxResults": 4,
+    "topic": "news",
+    "includeAnswer": true
 }
 \`\`\`
 
-If no number of results is specified, set "limit" to 1.
-If no type is specified, set "type" to "general".
-Always include a reformulated "query" that is clear, specific, and optimized for search engines.
-
-IMPORTANT: Your reformulated query should:
-- Stay faithful to the original request
-- NOT add specific topics or technologies that weren't mentioned
-- NOT assume specific use cases unless clearly stated
-- Focus on the main subject of the query
-- Be concise and clear
-
-Here are some examples of how to interpret queries:
-- "Find me 5 articles about AI" \u2192 limit: 5, type: "general", query: "artificial intelligence latest developments"
-- "What are the latest news about SpaceX?" \u2192 limit: 1, type: "news", query: "SpaceX recent news"
-- "Give me multiple sources about climate change" \u2192 limit: 5, type: "general", query: "climate change information"
-- "Find detailed information about quantum computing" \u2192 limit: 3, type: "general", query: "quantum computing overview"
-- "Show me recent developments in blockchain" \u2192 limit: 3, type: "news", query: "blockchain recent developments"
-- "Can you look up information about Cursor?" \u2192 limit: 1, type: "general", query: "Cursor software information"
+Default values (do not include if using these):
+* searchDepth: "basic"
+* topic: "general"
+* maxResults: 1
+* includeAnswer: true
 
 Message to analyze: {{message}}
 
-Extract the search parameters from the message above. Reformulate the query for better search results. Respond with a JSON markdown block.
-`;
+Extract the search parameters from the message above. Respond ONLY with a valid JSON object, nothing else.`;
+
+// src/templates/searchResponseTemplate.ts
+var searchResponseTemplate = `
+You will receive a JSON string containing a search response with:
+- query: the search query used
+- answer: main search result summary
+- results: array of relevant sources with titles, URLs, and content
+- options: search parameters used
+
+TASK:
+1. Parse and analyze the content:
+   - Use the query to understand the search context
+   - Extract key information from the answer
+   - Review content from each result
+   - Consider relevance scores and dates
+   - Use search options to understand the scope
+
+2. Create a comprehensive response:
+   - Focus on answering the original query
+   - Start with the most relevant information
+   - Add important details from source content
+   - Ensure technical accuracy
+   - Remove any redundancy
+
+3. Format requirements:
+   - Write in the language of the user's message
+   - Keep technical terms unchanged (code, URLs, version numbers)
+   - Use clear, professional language
+   - No introductory phrases or meta-commentary
+   - Match the language level of the original query
+
+OUTPUT FORMAT:
+[Main content in user's message language, directly answering the query]
+
+Sources :
+[Numbered list of translated titles with original URLs]
+
+Example of GOOD response:
+Python 3.12 introduces significant performance improvements, including a 20% reduction in execution time and better memory management.
+
+Sources :
+1. [Python 3.12 Release Notes](https://docs.python.org/3.12/whatsnew)
+2. [Performance Improvements in Python 3.12](https://example.com/article)
+
+Example of BAD response:
+I will talk to you about Python...
+Here is what I found on the latest news...
+
+User message: {{message}}
+Search response: {{searchResponse}}
+
+CRITICAL: Start directly with the content in user's message language, NO introductions or meta-commentary allowed.`;
 
 // src/utils/searchUtils.ts
 import { encodingForModel } from "js-tiktoken";
@@ -104,28 +177,6 @@ function MaxTokens(data, maxTokens = DEFAULT_MAX_WEB_SEARCH_TOKENS) {
     return data.slice(0, maxTokens);
   }
   return data;
-}
-function isValidSearchParams(params) {
-  if (typeof params !== "object" || params === null) {
-    return false;
-  }
-  if ("limit" in params) {
-    if (typeof params.limit === "string") {
-      const parsedLimit = parseInt(params.limit, 10);
-      if (isNaN(parsedLimit) || parsedLimit < 1) {
-        return false;
-      }
-      params.limit = parsedLimit;
-    } else if (typeof params.limit !== "number" || params.limit < 1 || !Number.isInteger(params.limit)) {
-      return false;
-    }
-  }
-  if ("type" in params) {
-    if (typeof params.type !== "string" || params.type !== "news" && params.type !== "general") {
-      return false;
-    }
-  }
-  return true;
 }
 
 // src/examples/webSearchExamples.ts
@@ -255,68 +306,54 @@ var webSearch = {
   handler: async (runtime, message, state, _options, callback) => {
     var _a;
     state = await runtime.composeState(message);
-    const userId = runtime.agentId;
-    elizaLogger.log("Original search query:", message.content.text);
+    const recentMessagesData = state.recentMessagesData || [];
+    const lastAgentMessage = recentMessagesData[recentMessagesData.length - 1];
+    const searchMessage = (_a = lastAgentMessage == null ? void 0 : lastAgentMessage.content) == null ? void 0 : _a.text;
+    elizaLogger.warn("Using message for search:", {
+      fromAgent: !!lastAgentMessage,
+      text: searchMessage
+    });
     try {
-      const recentMessagesData = state.recentMessagesData || [];
-      const currentUserMessageIndex = recentMessagesData.findIndex((m) => m.content && m.content.text === message.content.text);
-      let lastRelevantAgentMessage = null;
-      if (currentUserMessageIndex >= 0 && currentUserMessageIndex < recentMessagesData.length - 1) {
-        for (let i = currentUserMessageIndex + 1; i < recentMessagesData.length; i++) {
-          const m = recentMessagesData[i];
-          if (m.agentId === message.agentId) {
-            lastRelevantAgentMessage = m;
-            break;
-          }
-        }
-      }
-      const lastAgentMessage = lastRelevantAgentMessage || recentMessagesData.filter((m) => m.agentId === message.agentId).pop();
-      const lastAgentMessageText = ((_a = lastAgentMessage == null ? void 0 : lastAgentMessage.content) == null ? void 0 : _a.text) || message.content.text;
       const searchParamsContext = composeContext({
         state: {
           ...state,
-          message: lastAgentMessageText
+          message: searchMessage
         },
-        template: searchParamsTemplate
+        template: searchTemplate
       });
-      const searchParams = await generateObjectDeprecated({
+      const { query, ...options } = (await generateObject({
         runtime,
         context: searchParamsContext,
-        modelClass: ModelClass.SMALL
-      });
-      const isParamsValid = isValidSearchParams(searchParams);
-      if (!isParamsValid) {
-        elizaLogger.warn("Invalid search parameters, using defaults");
-      }
-      const webSearchPrompt = searchParams.query;
-      elizaLogger.log("Using reformulated search query:", webSearchPrompt);
+        modelClass: ModelClass.SMALL,
+        schema: SearchParamsSchema
+      })).object;
       const webSearchService = new WebSearchService();
       await webSearchService.initialize(runtime);
-      const searchOptions = isParamsValid ? {
-        limit: typeof searchParams.limit === "string" ? parseInt(searchParams.limit, 10) : searchParams.limit,
-        type: searchParams.type
-      } : void 0;
-      const searchResponse = await webSearchService.search(
-        webSearchPrompt,
-        searchOptions
-      );
+      const searchResponse = await webSearchService.search(query, options);
       if (searchResponse && searchResponse.results.length) {
-        const limit = (searchOptions == null ? void 0 : searchOptions.limit) || 1;
-        const limitedResults = searchResponse.results.slice(0, limit);
-        const responseList = searchResponse.answer ? `${searchResponse.answer}${Array.isArray(limitedResults) && limitedResults.length > 0 ? `
-
-For more details, you can check out these resources:
-${limitedResults.map(
-          (result, index) => `${index + 1}. [${result.title}](${result.url})`
-        ).join("\n")}` : ""}` : "";
-        callback({
-          text: MaxTokens(responseList, DEFAULT_MAX_WEB_SEARCH_TOKENS)
+        const enhancedContext = composeContext({
+          state: {
+            ...state,
+            message: searchMessage,
+            searchResponse: JSON.stringify({
+              query,
+              answer: searchResponse.answer,
+              results: searchResponse.results
+            })
+          },
+          template: searchResponseTemplate
         });
-      } else {
-        elizaLogger.error("Search failed or returned no data");
+        const enhancedResponse = await generateText({
+          runtime,
+          context: enhancedContext,
+          modelClass: ModelClass.SMALL
+        });
+        callback({
+          text: MaxTokens(enhancedResponse, DEFAULT_MAX_WEB_SEARCH_TOKENS)
+        });
       }
     } catch (error) {
-      elizaLogger.error("Error in web search handler:", error);
+      elizaLogger.error("Web search error:", error);
     }
   },
   examples: webSearchExamples
@@ -326,8 +363,8 @@ ${limitedResults.map(
 import {
   elizaLogger as elizaLogger2,
   composeContext as composeContext2,
-  generateObjectDeprecated as generateObjectDeprecated2,
-  generateText,
+  generateObjectDeprecated,
+  generateText as generateText2,
   ModelClass as ModelClass2
 } from "@elizaos/core";
 
@@ -425,7 +462,7 @@ var extractResponseTemplate = `
 Format web content extraction results in a clear and readable way.
 
 Original user message:
-{{originalMessage}}
+{{message}}
 
 Here are the extraction results to format:
 {{extractionResults}}
@@ -658,7 +695,7 @@ var webExtract = {
         },
         template: extractParamsTemplate
       });
-      const extractParams = await generateObjectDeprecated2({
+      const extractParams = await generateObjectDeprecated({
         runtime,
         context: extractParamsContext,
         modelClass: ModelClass2.SMALL
@@ -724,7 +761,7 @@ var webExtract = {
       },
       template: extractResponseTemplate
     });
-    const formattedResponse = await generateText({
+    const formattedResponse = await generateText2({
       runtime,
       context: responseContext,
       modelClass: ModelClass2.MEDIUM

@@ -35,21 +35,18 @@ export class WebSearchService extends Service implements IWebSearchService {
         options?: SearchOptions,
     ): Promise<SearchResponse> {
         try {
-            let maxResults = 1;
-            
-            if (options && options.limit !== undefined) {
-                maxResults = typeof options.limit === 'string' 
-                    ? parseInt(options.limit, 10) 
-                    : options.limit;
-            }
-            
             const tavilyOptions = {
-                includeAnswer: options?.includeAnswer ?? true,
-                maxResults: maxResults,
-                topic: options?.type || "general",
                 searchDepth: options?.searchDepth || "basic",
-                includeImages: options?.includeImages || false,
+                topic: options?.topic || "general",
                 days: options?.days || 3,
+                maxResults: options?.maxResults || 1,
+                includeImages: options?.includeImages || false,
+                includeImageDescriptions: options?.includeImageDescriptions || false,
+                includeAnswer: options?.includeAnswer ?? true,
+                includeRawContent: options?.includeRawContent || false,
+                includeDomains: options?.includeDomains,
+                excludeDomains: options?.excludeDomains,
+                maxTokens: options?.maxTokens
             };
             
             const response = await this.tavilyClient.search(query, tavilyOptions);
