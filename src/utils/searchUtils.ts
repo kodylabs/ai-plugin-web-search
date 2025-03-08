@@ -29,34 +29,39 @@ export function MaxTokens(
 }
 
 /**
- * Validate extracted search parameters and convert strings to numbers if necessary
+ * Validate search parameters and ensure proper types
  */
-export function isValidSearchParams(params: any): params is SearchOptions {
+export function isValidSearchParams(params: any): params is { query: string } & SearchOptions {
     if (typeof params !== 'object' || params === null) {
         return false;
     }
-    
-    // Check limit
-    if ('limit' in params) {
-        // If limit is a string, try to convert it to a number
-        if (typeof params.limit === 'string') {
-            const parsedLimit = parseInt(params.limit, 10);
-            if (isNaN(parsedLimit) || parsedLimit < 1) {
-                return false;
-            }
-            // Automatically convert to number
-            params.limit = parsedLimit;
-        } else if (typeof params.limit !== 'number' || params.limit < 1 || !Number.isInteger(params.limit)) {
+
+    // Validate query
+    if (typeof params.query !== 'string' || params.query.trim().length === 0) {
+        return false;
+    }
+
+    // Check maxResults
+    if ('maxResults' in params) {
+        const maxResults = Number(params.maxResults);
+        if (isNaN(maxResults) || maxResults < 0 || maxResults > 20) {
             return false;
         }
+        params.maxResults = maxResults;
     }
-    
-    // Check type
-    if ('type' in params) {
-        if (typeof params.type !== 'string' || (params.type !== 'news' && params.type !== 'general')) {
-            return false;
-        }
+
+    // Check topic
+    if ('topic' in params && !['general', 'news'].includes(params.topic)) {
+        return false;
     }
-    
+
+    // Check searchDepth
+    if ('searchDepth' in params && !['basic', 'advanced'].includes(params.searchDepth)) {
+        return false;
+    }
+
+    // Ensure includeAnswer is always true
+    params.includeAnswer = true;
+
     return true;
 } 

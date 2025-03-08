@@ -7,7 +7,7 @@ export const extractResponseTemplate = `
 Format web content extraction results in a clear and readable way.
 
 Original user message:
-{{originalMessage}}
+{{message}}
 
 Here are the extraction results to format:
 {{extractionResults}}
