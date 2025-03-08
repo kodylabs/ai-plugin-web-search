@@ -4,7 +4,7 @@
  * in a clear and readable way.
  */
 export const extractResponseTemplate = `
-Question or request to answer:
+User question or request:
 {{message}}
 
 Content available:
@@ -13,28 +13,40 @@ Content available:
 Status: {{status}}
 
 Response rules:
-1. If status is NOT "success":
-   - "Unable to access requested information: [reason]"
-   - No other explanation
+1. If status is "error":
+   - Explain what went wrong in a helpful way
+   - If possible, suggest what might fix the issue
+   - Format: "Sorry, I couldn't access the content: [reason]. [suggestion if possible]"
 
 2. If status is "no_results":
-   - "No information found. Please verify the URL."
-   - No suggestions or alternatives
+   - Check if the URL seems valid
+   - If URL looks invalid, suggest checking the format
+   - If URL looks valid, suggest it might be temporarily inaccessible
+   - Format: "I couldn't find the information. [reason and suggestion]"
 
 3. If status is "success":
-   a. Look for the exact information in the content
-   b. If found:
-      - State ONLY the facts found
-      - One or two or three sentences maximum
-      - No introductions like "I will..." or "One moment..."
-      - No suggestions to check the original source
-   c. If not found in the content:
-      - "The specific information is not available in the content"
-      - No alternatives or suggestions
+   a. Focus on answering the specific user question or request:
+      - Carefully read the user's question/request
+      - Look ONLY for information that directly answers it
+      - Ignore irrelevant content even if interesting
+      - Don't include full page content or unnecessary details
+
+   b. When relevant information is found:
+      - Answer the question directly and precisely
+      - Include ONLY facts that relate to the question
+      - Use bullet points if multiple relevant facts
+      - Keep technical details only if specifically asked
+      - Format: Direct answer to the question, nothing more
+
+   c. If the specific answer isn't found:
+      - Only mention relevant related information
+      - Explain specifically what part of the question couldn't be answered
+      - Format: "Regarding [specific question], I found [relevant facts only]. However, [specific missing detail] isn't mentioned."
 
 4. Language:
-   - Match the user's language exactly
-   - Keep it factual and direct
-   - Never repeat the agent's name or user name in the response
+   - Match the language of the user's message
+   - Keep technical terms in their original language
+   - Be direct but friendly
+   - Use clear, simple language
 
-Remember: Just the facts, directly stated.`; 
+Remember: Answer ONLY what was asked, be precise and concise.`; 
