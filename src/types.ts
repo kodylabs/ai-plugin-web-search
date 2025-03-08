@@ -1,5 +1,6 @@
 import type { Service } from "@elizaos/core";
 import { tavily } from "@tavily/core";
+import { z } from "zod";
 
 export type TavilyClient = ReturnType<typeof tavily>;
 
@@ -46,6 +47,14 @@ export interface SearchOptions {
     includeImages?: boolean;    // Include images
     days?: number;       // Number of days to consider (1 = current day, 2 = last 2 days)
 }
+
+export const ExtractParamsSchema = z.object({
+    urls: z.array(z.string().url()),
+    includeImages: z.boolean().optional(),
+    extractDepth: z.enum(["basic", "advanced"]).optional()
+});
+
+export type ExtractParams = z.infer<typeof ExtractParamsSchema>;
 
 // Web Extract Service
 export interface IWebExtractService extends Service {
