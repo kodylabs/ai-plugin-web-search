@@ -6,16 +6,20 @@ import {
     type HandlerCallback,
     elizaLogger,
     composeContext,
-    generateObjectDeprecated,
+    generateObject,
     generateText,
     ModelClass
 } from "@elizaos/core";
-import { validateUrls, normalizeExtractParams } from "../utils/extractUtils";
 import { extractParamsTemplate } from "../templates/extractParamsTemplate";
 import { extractResponseTemplate } from "../templates/extractResponseTemplate";
 import { webExtractExamples } from "../examples/webExtractExamples";
 import { WebExtractService } from "../services/webExtractService";
-import type { SuccessfulExtractResult, FailedExtractResult } from "../types";
+import { 
+    ExtractParamsSchema, 
+    type ExtractParams,
+    type SuccessfulExtractResult, 
+    type FailedExtractResult 
+} from "../types";
 
 export const webExtract: Action = {
     name: "WEB_EXTRACT",
@@ -49,7 +53,9 @@ export const webExtract: Action = {
         state = (await runtime.composeState(message)) as State;
         let extractResponse;
         let extractionResultsText = "";
-        let status = "success"; // Default status
+        let status = "success";
+        
+        elizaLogger.warn("Web extract message:", message.content.text);
 
         try {
             // Use the template to extract URLs and options
@@ -61,69 +67,58 @@ export const webExtract: Action = {
                 template: extractParamsTemplate
             });
 
-            const extractParams = await generateObjectDeprecated({
+            const extractParams = await generateObject({
                 runtime,
                 context: extractParamsContext,
                 modelClass: ModelClass.SMALL,
+                schema: ExtractParamsSchema,
+                schemaName: "ExtractParams",
+                schemaDescription: "Parameters for web extraction including URLs and options"
             });
             
-            // Normalize parameters using utility function
-            const normalizedParams = normalizeExtractParams(extractParams || {});
+            const { urls, includeImages, extractDepth } = extractParams.object as ExtractParams;
             
-            // Validate URLs
-            const validUrls = validateUrls(normalizedParams.urls);
+            const extractOptions = {
+                includeImages: includeImages ?? false,
+                extractDepth: extractDepth || "basic"
+            };
 
-            if (validUrls.length === 0) {
-                // No valid URLs found
-                extractionResultsText = "No valid URLs were found in the message. Please provide valid URLs starting with http:// or https://.\n";
-                status = "no_results";
-            } else {
-                const webExtractService = new WebExtractService();
-                await webExtractService.initialize(runtime);
+            const webExtractService = new WebExtractService();
+            await webExtractService.initialize(runtime);
+
+            try {
+                extractResponse = await webExtractService.extract(
+                    urls,
+                    extractOptions
+                );
                 
-                const extractOptions = {
-                    includeImages: normalizedParams.includeImages !== undefined ? normalizedParams.includeImages : false,
-                    extractDepth: (normalizedParams.extractDepth as "basic" | "advanced") || "basic"
-                };
-
-                try {
-                    extractResponse = await webExtractService.extract(validUrls, extractOptions);
-                    
-                    if (extractResponse && extractResponse.results.length) {
-                        // Add successful results
-                        extractResponse.results.forEach((result: SuccessfulExtractResult, index: number) => {
-                            extractionResultsText += `URL ${index + 1}: ${result.url}\n`;
-                            extractionResultsText += `Content: ${result.raw_content}\n`;
-                            
-                            // Add images if available
-                            if (result.images && result.images.length > 0) {
-                                extractionResultsText += `Images: ${result.images.length} image(s) found\n`;
-                            }
-                            
-                            extractionResultsText += "\n---\n\n";
-                        });
-                        
-                        // Add failed results
-                        if (extractResponse.failed_results && extractResponse.failed_results.length > 0) {
-                            extractionResultsText += "URLs not extracted:\n";
-                            
-                            extractResponse.failed_results.forEach((result: FailedExtractResult, index: number) => {
-                                extractionResultsText += `URL ${index + 1}: ${result.url} - Error: ${result.error}\n`;
-                            });
-                            
-                            extractionResultsText += "\n---\n\n";
+                if (extractResponse && extractResponse.results.length) {
+                    // Provide raw data to the LLM without pre-processing
+                    extractResponse.results.forEach((result: SuccessfulExtractResult, index: number) => {
+                        extractionResultsText += `URL: ${result.url}\n`;
+                        extractionResultsText += `Content: ${result.raw_content}\n`;
+                        if (result.images && result.images.length > 0) {
+                            extractionResultsText += `Images: ${result.images.length}\n`;
                         }
-                        
-                        status = "success";
-                    } else {
-                        extractionResultsText = "Could not extract content from the provided URLs. Please check that the URLs are accessible and try again.\n";
-                        status = "no_results";
+                        extractionResultsText += "\n---\n\n";
+                    });
+                    
+                    if (extractResponse.failed_results && extractResponse.failed_results.length > 0) {
+                        extractionResultsText += "Failed URLs:\n";
+                        extractResponse.failed_results.forEach((result: FailedExtractResult) => {
+                            extractionResultsText += `${result.url} - ${result.error}\n`;
+                        });
                     }
-                } catch (error) {
-                    elizaLogger.error("Error in web extract handler:", error);
-                    extractionResultsText = `An error occurred while extracting from URLs: ${error.message || "Unknown error"}\n`;
-                    status = "error";
+                    
+                    status = "success";
+                } else {
+                    extractionResultsText = "Could not extract content from the provided URLs. Please check that the URLs are accessible and try again.\n";
+                    status = "no_results";
                 }
+            } catch (error) {
+                elizaLogger.error("Error in web extract handler:", error);
+                extractionResultsText = `An error occurred while extracting from URLs: ${error.message || "Unknown error"}\n`;
+                status = "error";
             }
         } catch (error) {
             elizaLogger.error("Error in web extract handler:", error);
@@ -138,7 +133,7 @@ export const webExtract: Action = {
                 extractionResults: extractionResultsText,
                 responseTime: extractResponse ? extractResponse.response_time : 0,
                 status: status,
-                originalMessage: message.content.text
+                message: message.content.text
             },
             template: extractResponseTemplate
         });

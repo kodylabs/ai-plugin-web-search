@@ -253,7 +253,6 @@ var webSearch = {
     return !!runtime.getSetting("TAVILY_API_KEY");
   },
   handler: async (runtime, message, state, _options, callback) => {
-    var _a;
     state = await runtime.composeState(message);
     const userId = runtime.agentId;
     elizaLogger.log("Original search query:", message.content.text);
@@ -270,12 +269,10 @@ var webSearch = {
           }
         }
       }
-      const lastAgentMessage = lastRelevantAgentMessage || recentMessagesData.filter((m) => m.agentId === message.agentId).pop();
-      const lastAgentMessageText = ((_a = lastAgentMessage == null ? void 0 : lastAgentMessage.content) == null ? void 0 : _a.text) || message.content.text;
       const searchParamsContext = composeContext({
         state: {
           ...state,
-          message: lastAgentMessageText
+          message: lastRelevantAgentMessage
         },
         template: searchParamsTemplate
       });
@@ -326,53 +323,10 @@ ${limitedResults.map(
 import {
   elizaLogger as elizaLogger2,
   composeContext as composeContext2,
-  generateObjectDeprecated as generateObjectDeprecated2,
+  generateObject,
   generateText,
   ModelClass as ModelClass2
 } from "@elizaos/core";
-
-// src/utils/extractUtils.ts
-import { encodingForModel as encodingForModel2 } from "js-tiktoken";
-function validateUrls(urls) {
-  if (!urls || !Array.isArray(urls)) {
-    return [];
-  }
-  return urls.filter((url) => {
-    try {
-      new URL(url);
-      return true;
-    } catch (e) {
-      return false;
-    }
-  });
-}
-function normalizeExtractParams(params) {
-  const normalizedParams = {
-    urls: []
-  };
-  if (typeof params.includeImages === "string") {
-    const lowerValue = String(params.includeImages).toLowerCase();
-    normalizedParams.includeImages = lowerValue === "true";
-  } else if (typeof params.includeImages === "boolean") {
-    normalizedParams.includeImages = params.includeImages;
-  } else {
-    normalizedParams.includeImages = false;
-  }
-  if (typeof params.extractDepth === "string") {
-    const lowerValue = params.extractDepth.toLowerCase();
-    if (lowerValue === "basic" || lowerValue === "advanced") {
-      normalizedParams.extractDepth = lowerValue;
-    } else {
-      normalizedParams.extractDepth = "basic";
-    }
-  } else {
-    normalizedParams.extractDepth = "basic";
-  }
-  if (Array.isArray(params.urls)) {
-    normalizedParams.urls = params.urls;
-  }
-  return normalizedParams;
-}
 
 // src/templates/extractParamsTemplate.ts
 var extractParamsTemplate = `
@@ -422,32 +376,52 @@ Extract the URLs and options from the message above. Respond ONLY with a valid J
 
 // src/templates/extractResponseTemplate.ts
 var extractResponseTemplate = `
-Format web content extraction results in a clear and readable way.
+User question or request:
+{{message}}
 
-Original user message:
-{{originalMessage}}
-
-Here are the extraction results to format:
+Content available:
 {{extractionResults}}
 
 Status: {{status}}
 
-Formatting rules:
-1. If status is "error" or "no_results", simply report the error message or explain why no results were found. Do not try to summarize non-existent content.
-2. If status is "success", then:
-   a. Present a concise summary of the content of each URL
-   b. Organize information in a structured and easy-to-read way
-   c. Highlight key points of the content
-   d. If images were found, mention it
-   e. If some URLs could not be extracted, explain why
-3. Use a professional and informative tone
-4. Respond in the same language as the original user message. If the original message is in French, respond in French. If it's in English, respond in English, etc.
-5. Format the response in a clean, modern way that works well in messaging platforms like Discord or Slack
-6. DO NOT include the status in your output
-7. Use markdown formatting to make the content more readable (bold for titles, bullet points for lists, etc.)
+Response rules:
+1. If status is "error":
+   - Explain what went wrong in a helpful way
+   - If possible, suggest what might fix the issue
+   - Format: "Sorry, I couldn't access the content: [reason]. [suggestion if possible]"
 
-Respond with the formatted content, without adding an introduction or conclusion.
-`;
+2. If status is "no_results":
+   - Check if the URL seems valid
+   - If URL looks invalid, suggest checking the format
+   - If URL looks valid, suggest it might be temporarily inaccessible
+   - Format: "I couldn't find the information. [reason and suggestion]"
+
+3. If status is "success":
+   a. Focus on answering the specific user question or request:
+      - Carefully read the user's question/request
+      - Look ONLY for information that directly answers it
+      - Ignore irrelevant content even if interesting
+      - Don't include full page content or unnecessary details
+
+   b. When relevant information is found:
+      - Answer the question directly and precisely
+      - Include ONLY facts that relate to the question
+      - Use bullet points if multiple relevant facts
+      - Keep technical details only if specifically asked
+      - Format: Direct answer to the question, nothing more
+
+   c. If the specific answer isn't found:
+      - Only mention relevant related information
+      - Explain specifically what part of the question couldn't be answered
+      - Format: "Regarding [specific question], I found [relevant facts only]. However, [specific missing detail] isn't mentioned."
+
+4. Language:
+   - Match the language of the user's message
+   - Keep technical terms in their original language
+   - Be direct but friendly
+   - Use clear, simple language
+
+Remember: Answer ONLY what was asked, be precise and concise.`;
 
 // src/examples/webExtractExamples.ts
 var webExtractExamples = [
@@ -461,7 +435,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the main features of the latest iPhone that I extracted from the page:",
         action: "WEB_EXTRACT"
       }
     }
@@ -476,7 +449,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the technical specifications of the Tesla Model 3 that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -491,7 +463,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the ingredients and steps from the lasagna recipe that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -506,7 +477,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the main conclusions from the scientific article that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -521,7 +491,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here's the information about upcoming events that I extracted from both sites:",
         action: "WEB_EXTRACT"
       }
     }
@@ -536,7 +505,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here's a comparison of PlayStation 5 prices from the websites you provided:",
         action: "WEB_EXTRACT"
       }
     }
@@ -551,7 +519,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here's the weather forecast for New York that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -566,7 +533,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the main differences between Python and Java based on their documentation:",
         action: "WEB_EXTRACT"
       }
     }
@@ -622,6 +588,14 @@ var WebExtractService = class _WebExtractService extends Service2 {
   }
 };
 
+// src/types.ts
+import { z } from "zod";
+var ExtractParamsSchema = z.object({
+  urls: z.array(z.string().url()),
+  includeImages: z.boolean().optional(),
+  extractDepth: z.enum(["basic", "advanced"]).optional()
+});
+
 // src/actions/webExtract.ts
 var webExtract = {
   name: "WEB_EXTRACT",
@@ -650,6 +624,7 @@ var webExtract = {
     let extractResponse;
     let extractionResultsText = "";
     let status = "success";
+    elizaLogger2.warn("Web extract message:", message.content.text);
     try {
       const extractParamsContext = composeContext2({
         state: {
@@ -658,56 +633,55 @@ var webExtract = {
         },
         template: extractParamsTemplate
       });
-      const extractParams = await generateObjectDeprecated2({
+      const extractParams = await generateObject({
         runtime,
         context: extractParamsContext,
-        modelClass: ModelClass2.SMALL
+        modelClass: ModelClass2.SMALL,
+        schema: ExtractParamsSchema,
+        schemaName: "ExtractParams",
+        schemaDescription: "Parameters for web extraction including URLs and options"
       });
-      const normalizedParams = normalizeExtractParams(extractParams || {});
-      const validUrls = validateUrls(normalizedParams.urls);
-      if (validUrls.length === 0) {
-        extractionResultsText = "No valid URLs were found in the message. Please provide valid URLs starting with http:// or https://.\n";
-        status = "no_results";
-      } else {
-        const webExtractService = new WebExtractService();
-        await webExtractService.initialize(runtime);
-        const extractOptions = {
-          includeImages: normalizedParams.includeImages !== void 0 ? normalizedParams.includeImages : false,
-          extractDepth: normalizedParams.extractDepth || "basic"
-        };
-        try {
-          extractResponse = await webExtractService.extract(validUrls, extractOptions);
-          if (extractResponse && extractResponse.results.length) {
-            extractResponse.results.forEach((result, index) => {
-              extractionResultsText += `URL ${index + 1}: ${result.url}
+      const { urls, includeImages, extractDepth } = extractParams.object;
+      const extractOptions = {
+        includeImages: includeImages ?? false,
+        extractDepth: extractDepth || "basic"
+      };
+      const webExtractService = new WebExtractService();
+      await webExtractService.initialize(runtime);
+      try {
+        extractResponse = await webExtractService.extract(
+          urls,
+          extractOptions
+        );
+        if (extractResponse && extractResponse.results.length) {
+          extractResponse.results.forEach((result, index) => {
+            extractionResultsText += `URL: ${result.url}
 `;
-              extractionResultsText += `Content: ${result.raw_content}
+            extractionResultsText += `Content: ${result.raw_content}
 `;
-              if (result.images && result.images.length > 0) {
-                extractionResultsText += `Images: ${result.images.length} image(s) found
+            if (result.images && result.images.length > 0) {
+              extractionResultsText += `Images: ${result.images.length}
 `;
-              }
-              extractionResultsText += "\n---\n\n";
-            });
-            if (extractResponse.failed_results && extractResponse.failed_results.length > 0) {
-              extractionResultsText += "URLs not extracted:\n";
-              extractResponse.failed_results.forEach((result, index) => {
-                extractionResultsText += `URL ${index + 1}: ${result.url} - Error: ${result.error}
-`;
-              });
-              extractionResultsText += "\n---\n\n";
             }
-            status = "success";
-          } else {
-            extractionResultsText = "Could not extract content from the provided URLs. Please check that the URLs are accessible and try again.\n";
-            status = "no_results";
-          }
-        } catch (error) {
-          elizaLogger2.error("Error in web extract handler:", error);
-          extractionResultsText = `An error occurred while extracting from URLs: ${error.message || "Unknown error"}
+            extractionResultsText += "\n---\n\n";
+          });
+          if (extractResponse.failed_results && extractResponse.failed_results.length > 0) {
+            extractionResultsText += "Failed URLs:\n";
+            extractResponse.failed_results.forEach((result) => {
+              extractionResultsText += `${result.url} - ${result.error}
 `;
-          status = "error";
+            });
+          }
+          status = "success";
+        } else {
+          extractionResultsText = "Could not extract content from the provided URLs. Please check that the URLs are accessible and try again.\n";
+          status = "no_results";
         }
+      } catch (error) {
+        elizaLogger2.error("Error in web extract handler:", error);
+        extractionResultsText = `An error occurred while extracting from URLs: ${error.message || "Unknown error"}
+`;
+        status = "error";
       }
     } catch (error) {
       elizaLogger2.error("Error in web extract handler:", error);
@@ -720,7 +694,7 @@ var webExtract = {
         extractionResults: extractionResultsText,
         responseTime: extractResponse ? extractResponse.response_time : 0,
         status,
-        originalMessage: message.content.text
+        message: message.content.text
       },
       template: extractResponseTemplate
     });

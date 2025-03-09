@@ -4,29 +4,49 @@
  * in a clear and readable way.
  */
 export const extractResponseTemplate = `
-Format web content extraction results in a clear and readable way.
+User question or request:
+{{message}}
 
-Original user message:
-{{originalMessage}}
-
-Here are the extraction results to format:
+Content available:
 {{extractionResults}}
 
 Status: {{status}}
 
-Formatting rules:
-1. If status is "error" or "no_results", simply report the error message or explain why no results were found. Do not try to summarize non-existent content.
-2. If status is "success", then:
-   a. Present a concise summary of the content of each URL
-   b. Organize information in a structured and easy-to-read way
-   c. Highlight key points of the content
-   d. If images were found, mention it
-   e. If some URLs could not be extracted, explain why
-3. Use a professional and informative tone
-4. Respond in the same language as the original user message. If the original message is in French, respond in French. If it's in English, respond in English, etc.
-5. Format the response in a clean, modern way that works well in messaging platforms like Discord or Slack
-6. DO NOT include the status in your output
-7. Use markdown formatting to make the content more readable (bold for titles, bullet points for lists, etc.)
+Response rules:
+1. If status is "error":
+   - Explain what went wrong in a helpful way
+   - If possible, suggest what might fix the issue
+   - Format: "Sorry, I couldn't access the content: [reason]. [suggestion if possible]"
 
-Respond with the formatted content, without adding an introduction or conclusion.
-`; 
+2. If status is "no_results":
+   - Check if the URL seems valid
+   - If URL looks invalid, suggest checking the format
+   - If URL looks valid, suggest it might be temporarily inaccessible
+   - Format: "I couldn't find the information. [reason and suggestion]"
+
+3. If status is "success":
+   a. Focus on answering the specific user question or request:
+      - Carefully read the user's question/request
+      - Look ONLY for information that directly answers it
+      - Ignore irrelevant content even if interesting
+      - Don't include full page content or unnecessary details
+
+   b. When relevant information is found:
+      - Answer the question directly and precisely
+      - Include ONLY facts that relate to the question
+      - Use bullet points if multiple relevant facts
+      - Keep technical details only if specifically asked
+      - Format: Direct answer to the question, nothing more
+
+   c. If the specific answer isn't found:
+      - Only mention relevant related information
+      - Explain specifically what part of the question couldn't be answered
+      - Format: "Regarding [specific question], I found [relevant facts only]. However, [specific missing detail] isn't mentioned."
+
+4. Language:
+   - Match the language of the user's message
+   - Keep technical terms in their original language
+   - Be direct but friendly
+   - Use clear, simple language
+
+Remember: Answer ONLY what was asked, be precise and concise.`; 
