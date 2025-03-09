@@ -53,7 +53,9 @@ export const webExtract: Action = {
         state = (await runtime.composeState(message)) as State;
         let extractResponse;
         let extractionResultsText = "";
-        let status = "success"; // Default status
+        let status = "success";
+        
+        elizaLogger.warn("Web extract message:", message.content.text);
 
         try {
             // Use the template to extract URLs and options

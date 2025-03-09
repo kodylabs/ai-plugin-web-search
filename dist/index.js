@@ -435,7 +435,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the main features of the latest iPhone that I extracted from the page:",
         action: "WEB_EXTRACT"
       }
     }
@@ -450,7 +449,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the technical specifications of the Tesla Model 3 that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -465,7 +463,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the ingredients and steps from the lasagna recipe that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -480,7 +477,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the main conclusions from the scientific article that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -495,7 +491,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here's the information about upcoming events that I extracted from both sites:",
         action: "WEB_EXTRACT"
       }
     }
@@ -510,7 +505,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here's a comparison of PlayStation 5 prices from the websites you provided:",
         action: "WEB_EXTRACT"
       }
     }
@@ -525,7 +519,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here's the weather forecast for New York that I extracted:",
         action: "WEB_EXTRACT"
       }
     }
@@ -540,7 +533,6 @@ var webExtractExamples = [
     {
       user: "{{agentName}}",
       content: {
-        text: "Here are the main differences between Python and Java based on their documentation:",
         action: "WEB_EXTRACT"
       }
     }
@@ -632,6 +624,7 @@ var webExtract = {
     let extractResponse;
     let extractionResultsText = "";
     let status = "success";
+    elizaLogger2.warn("Web extract message:", message.content.text);
     try {
       const extractParamsContext = composeContext2({
         state: {
